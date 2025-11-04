@@ -1,1 +1,41 @@
-.github/workflows/publish-from-zip.yml
+name: Build from ZIP & Publish
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure ZIP is in repo root
+        shell: pwsh
+        run: |
+          $zip = "lz-logistics-github.zip"
+          if (!(Test-Path $zip)) { throw "ZIP not found in repo root: $zip" }
+          Expand-Archive -Path $zip -DestinationPath src -Force
+          Write-Host "Expanded files:"; Get-ChildItem -Recurse src | Select-Object -First 20
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore src/LZLogistics.sln
+
+      - name: Publish (Release)
+        run: dotnet publish src/LZLogistics.Web/LZLogistics.Web.csproj -c Release -o out
+
+      - name: Zip publish
+        shell: pwsh
+        run: Compress-Archive -Path out/* -DestinationPath publish.zip -Force
+
+      - name: Upload publish.zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: lzlogistics-publish
+          path: publish.zip
+          if-no-files-found: error
